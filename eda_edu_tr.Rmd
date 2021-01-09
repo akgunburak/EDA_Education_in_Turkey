@@ -1,0 +1,701 @@
+---
+title: "EDUCATION IN TURKEY"
+output: 
+  html_document: 
+    toc: yes
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<p>&nbsp;</p>
+
+
+### **Import necessary libraries**
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(dplyr)
+library(funModeling)
+library(reshape2)
+library(magrittr)
+library(sf)
+library(ggplot2)
+library(gganimate)
+library(plotly)
+library(qdap)
+library(ggthemes)
+```
+
+<p>&nbsp;</p>
+
+
+
+# **Population**
+
+<p>&nbsp;</p>
+
+
+
+### **Import the data**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_excel("data/population.xls")
+```
+
+<p>&nbsp;</p>
+
+
+### **Data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Set column names as row 6 with distinct numbers to make ready to delete
+#male and female columns
+names(data) <- paste(data[6, ], seq(1,ncol(data)))
+
+
+#Drop male and female columns
+data <- select(data, -contains("Male"), -contains("Female"))
+
+
+#Set names as row 4 in order to delete NA columns easily
+names(data) <- data[4, ]
+
+
+#Drop NA columns
+data <- select(data, -starts_with("NA"))
+
+
+#Get rows between 7 and 18 as last form of our dataset
+data <- slice(data, 7:18)
+
+
+#Rename columns with english expressions
+names(data) <- c("year", "total", "illiterate", "literate_without_diploma",
+                 "primary_school", "primary_education", "junior_and_vocational_high school",
+                 "high_and_vocational_high_school", "universities_and_other_higher_educational_institutions",
+                 "master", "doctorate", "unknown")
+
+
+#Change dataframe type to numeric
+data <- data.frame(lapply(data, function(x) as.numeric(as.character(x))))
+
+
+```
+
+<p>&nbsp;</p>
+
+
+### **Let's have a look to our data**
+
+```{r}
+head(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **Structure of our data**
+
+```{r}
+str(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **Check if there are zeros, na's or infinitive**
+
+```{r}
+funModeling::status(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **Pie chart of education levels of population at each year**
+
+```{r fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
+data_melted <- select(data, -total)
+data_melted <- melt(data_melted, "year")
+
+fig <- plot_ly(
+  data_melted,
+  labels = ~variable,
+  values = ~value,
+  type = 'pie',
+  frame = ~year
+  )
+
+fig %<>% 
+  layout(title = 'Population by Education Level',
+  xaxis = list(showgrid = FALSE,
+               zeroline = FALSE,
+               showticklabels = FALSE),
+  yaxis = list(showgrid = FALSE,
+               zeroline = FALSE,
+               showticklabels = FALSE),
+  legend = list(x = 100,
+                y = 0.5)
+  )
+
+
+
+fig
+```
+
+<p>&nbsp;</p>
+
+
+### **Population by education level line plots**
+
+```{r fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+for (i in seq(2, 12)){
+  data_melted <- melt(data, c(names(data)[-i]))
+  scatter_plot <- ggplot(data_melted, aes(x = year, y = value)) + 
+    geom_line(linetype = "longdash", lwd = 1) + 
+    scale_x_continuous(breaks = data$year) +
+    scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+    theme_igray() +
+    theme(strip.text = element_text(size = 10,
+                                    face = "bold"),
+          legend.text = element_blank(),
+          legend.title = element_blank(),
+          axis.text = element_text(size = 10),
+          axis.title = element_text(size = 10,
+                                    face = "bold"),
+          axis.text.x = element_text(angle = 50,
+                                     vjust = 0.5),
+          axis.title.y = element_blank()) +
+    facet_wrap(~variable,
+               ncol = 1)
+  
+  
+  print(scatter_plot)
+}
+```
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+
+
+# **Happiness Status of Different Education Levels**
+
+
+<p>&nbsp;</p>
+
+
+### **Import the data**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_excel("data/hapiness.xls")
+```
+
+<p>&nbsp;</p>
+
+
+### **Data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Get words after "-" in order to obtain only english parts
+for (column in names(data)){
+  i = 1
+  for (value in data[column]){
+    data[column][i] <- gsub(".*-", "", value)
+    i <- i + 1
+  }
+}
+
+
+#Renaming variables
+names(data) <- c("year", "level", "no_school_completed",  "primary_school",
+                  "primary_education_or_junior_high_school", "high_school_or_equivalent",
+                 "higher_education")
+
+
+#Get dataset between 4-67 rows
+data <- slice(data,  4:67)
+
+
+#Shift year column by 1 row
+data$"year" <- lag(data$"year", 1)
+
+
+#Get only Happy rows and remove others
+data <- filter(data, level == "Happy")
+
+
+#We do not need level anymore
+data$level <- NULL
+
+
+#Change the type of values from character to numeric
+data <- data.frame(lapply(data, function(x) as.numeric(as.character(x))))
+```
+
+<p>&nbsp;</p>
+
+
+### **Have a look to our data**
+
+```{r message=FALSE, warning=FALSE}
+str(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **More data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Transpose the dataframe and rename variables
+data_transpose <- as.data.frame(t(as.matrix(data)))
+names(data_transpose) <- data_transpose[1, ]
+data_transpose <- (data_transpose[2:nrow(data_transpose), ])
+data_transpose <- cbind(level = rownames(data_transpose), data_transpose)
+names(data_transpose) <- paste("value", names(data_transpose), sep = "_")
+
+
+#Change factor levels and date format in order to plot properly
+data_transpose$value_level <- factor(data_transpose$value_level, levels = 
+                                       c("no_school_completed",
+                                         "primary_school",
+                                         "primary_education_or_junior_high_school",
+                                         "high_school_or_equivalent",
+                                         "higher_education"))
+
+head(data_transpose)
+```
+
+<p>&nbsp;</p>
+
+
+### **Bar chart of happiness of different education groups**
+
+```{r fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
+data_melted <- melt(data, "year")
+f1 <- list(
+  size = 18
+  )
+
+f2 <- list(
+  size = 14
+  )
+
+ay <- list(
+  title = "HAPPINESS LEVEL",
+  titlefont = f1,
+  showticklabels = TRUE,
+  tickfont = f2,
+  exponentformat = "E"
+  )
+
+ax <- list(
+  title = "",
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = FALSE
+  )
+
+fig <- plot_ly(
+  data_melted,
+  x = ~variable,
+  y = ~value,
+  type = "bar",
+  frame = ~year,
+  color = ~variable,
+  texttemplate = gsub("_", "<br>", data_melted$variable),
+  textposition = 'outside'
+  )
+
+fig %<>% layout(xaxis = ax,
+                yaxis = ay,
+                showlegend = FALSE)
+                uniformtext=list(minsize=10, mode = 'show')
+
+fig
+```
+
+<p>&nbsp;</p>
+
+
+### **Change of happiness over years line plot**
+
+```{r fig.height=6, fig.width=13, message=FALSE, warning=FALSE}
+data_melted <- melt(data, "year")
+change_plot <- ggplot(data_melted, aes(x = year, y = value)) + 
+  geom_line(aes(color = variable), lwd = 2) + 
+  scale_x_continuous(breaks = data$year) +
+  scale_color_manual(values = c("darkred", "steelblue", "green4", "purple3", "gray7")) +
+  theme_bw()+  
+  theme(legend.text = element_text(size = 10),
+        legend.title = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 15, face = "bold"),
+        axis.text.x = element_text(angle = 50, vjust = 0.5),
+        axis.title.y = element_blank())
+
+change_plot
+```
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+
+
+# **Income Status of Different Education Levels**
+
+<p>&nbsp;</p>
+
+
+### **Import the dataset**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_excel("data/income.xls")
+```
+
+<p>&nbsp;</p>
+
+
+### **Data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Get dataset between 4-10 rows
+data %<>%
+  slice(4:10)
+
+
+#Transpose the dataframe
+data <- as.data.frame(t(as.matrix(data)))
+
+
+#Rename variables
+names(data) <- c("year", "total", "illiterate",  "literate_with_no_degree",
+                 "less_than_high_school", "high_school_or_equivalent",
+                 "higher_education")
+
+
+#Remove first row
+data %<>%
+  slice(2:nrow(data))
+
+
+#Change the type of values from character to numeric
+data <- data.frame(lapply(data, function(x) as.numeric(as.character(x))))
+
+
+#Change factor levels and date format
+data$year <- as.Date(as.character(data$year), format = "%Y")
+```
+
+<p>&nbsp;</p>
+
+
+### **Structure of data**
+
+```{r}
+str(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **Change of income of different education levels over years line plot**
+
+```{r message=FALSE, warning=FALSE}
+data_melted <- melt(data, "year")
+area_plot <- ggplot(data_melted, aes(x = year, y = value)) + 
+  geom_line(aes(color = variable), lwd = 2) + 
+  scale_x_continuous(breaks = data$year) +
+  theme_wsj() +
+  scale_colour_wsj() +
+  theme(legend.text = element_text(size = 30),
+        legend.title = element_blank(),
+        axis.text = element_text(size = 25),
+        axis.text.x = element_text(angle = 70, vjust = 0.5, face = "bold"),
+        axis.title = element_text(size = 25, face = "bold"),
+        axis.title.x = element_blank())
+  anim <- area_plot +
+    transition_reveal(year) +
+    labs(x = "variable", y = "value")
+    animate(anim + ease_aes(x = "linear"), width = 1500, height = 700, res = 50,
+            nframes = 80)
+```
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+
+
+# **Education Expenditure**
+
+<p>&nbsp;</p>
+
+
+### **Import the data**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_excel("data/education_expenditure_per_student.xls")
+```
+
+<p>&nbsp;</p>
+
+
+### **Data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Get data between rows 5 and 63 and delete last column which shows expenditures
+#in dollar terms
+data <- slice(data, 5:63)
+data <- select(data, -3,-5)
+
+
+#Rename variables
+names(data) <- c("level_of_education", "year",
+                 "education_expenditure_per_student_TL")
+
+
+
+#Remove unwanted characters
+data$year <- gsub(".(r).", "", data$year)
+data$level_of_education <- gsub(".(1).", "", data$level_of_education)
+
+
+#Remove rows all values NA
+data <- filter(data, !is.na(education_expenditure_per_student_TL))
+
+
+#Change type to numeric
+data <- data.frame(lapply(data, function(x) as.numeric(as.character(x))))
+
+
+#Reorganize our first column
+data$level_of_education <- NA
+levels <- c("total", "pre-primary_education", "primary_school", "lower_secondary_school",
+            "upper_secondary_education", "tertiary_education")
+
+k <- 1
+for(i in seq(1, nrow(data), 9)){
+  data$level_of_education[i] <- levels[k]
+  k <- k + 1
+}
+
+data %<>% fill(level_of_education)
+
+
+
+#Convert level of education to columns
+data <- dcast(data,  year ~ level_of_education)
+
+
+#Reorder the columns
+data <- cbind(year = data$year, data[, levels])
+```
+
+<p>&nbsp;</p>
+
+
+### **Structure of data**
+
+```{r}
+str(data)
+```
+
+<p>&nbsp;</p>
+
+
+### **Change of expenditures per student over years line plot**
+
+```{r fig.height=6, fig.width=13, message=FALSE, warning=FALSE}
+data_melted <- melt(data, "year")
+change_plot <- ggplot(data_melted, aes(x = year, y = value)) + 
+  geom_line(aes(color = variable), lwd=2) + 
+  scale_x_continuous(breaks = data$year) +
+  theme_bw()+  
+  ylab("Turkish Liras") + 
+  ggtitle("Expenditure Per Student in Turkey") +
+  theme(legend.text = element_text(size = 10),
+        legend.title = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 15, face = "bold"),
+        axis.text.x = element_text(angle = 50, vjust = 0.5),
+        axis.title.y = element_text(size = 15, face = "bold"))
+
+change_plot
+```
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+
+
+# **Education Levels by Provinces**
+
+<p>&nbsp;</p>
+
+
+### **Import the data**
+
+```{r message=FALSE, warning=FALSE}
+data <- read_excel("data/cities.xls")
+spatial <- st_read("data/tur_polbnda_adm1.shp")
+```
+
+<p>&nbsp;</p>
+
+
+### **Data manipulation**
+
+```{r message=FALSE, warning=FALSE}
+#Set column names as row 5 with distinct numbers to make ready to delete
+#male and female columns
+names(data) <- paste(data[5, ], seq(1, ncol(data)))
+
+
+#Drop male and female columns
+data <- select(data, -contains("Male"), -contains("Female"))
+
+
+#Make column names to values in row 3 in order to delete NA columns easily
+names(data) <- data[3, ]
+
+
+#Rename 3rd and 5th variable
+names(data)[c(3,5)] <- c("province_code", "province_name")
+
+
+#Drop NA columns
+data <- select(data, -starts_with("NA"))
+
+
+#Remove rows that contain total Turkey information at the first row of each year
+#It is possible to do that by removing just NA rows thanks to Province code
+#columns of corresponding rows filled with NA
+data <- na.omit(data)
+
+
+#We will calculate the weighted average of populations of each education level
+#for all cities. At the plotting process we will use this value to color the map
+edu_levels <- data.frame(lapply(select(data, -c(1:4, 14)), function(x) as.numeric(as.character(x))))
+weight <- seq(0.1, 0.9, 0.1)
+data$value <- apply(edu_levels, 1, weighted.mean, weight)
+
+
+#Rename variables
+new_names <- c("illiterate", "literate_without_diploma", "primary_school",
+              "primary_education", "junior_and_vocational_high_school",
+              "high_and_vocational_high_school", "universities", "master",
+              "doctorate")
+names(data)[5:13] <- new_names
+
+
+#Create a column that contains all information of cities. We will use it
+#on the graph by showing the information when hovering on the city
+for (column in new_names)
+  data[[column]] <- paste(column, data[[column]], sep = ": ")
+
+data <- transform(data, info = paste(illiterate, literate_without_diploma,
+                                     primary_school, primary_education,
+                                     junior_and_vocational_high_school,
+                                     high_and_vocational_high_school,
+                                     universities, master, doctorate,
+                                     sep = "\n"))
+
+
+#Keep only year, province name, value and edu_levels columns
+data <- select(data, c(1, 3, 15, 16))
+
+
+#Change the data type of year column and rename it
+data[, 1] <- data.frame(lapply(select(data, 1), function(x) as.numeric(as.character(x))))
+names(data)[1] <- "year"
+
+
+#Clear extra spaces from province names
+data$province_name <- str_trim(data$province_name, side = c("both", "left", "right"))
+
+
+#There is province code column in the spatial dataset, we need to obtain last two character
+#which contains numeric code (e.g TUR005 --> 05)
+spatial$province_code <- str_sub(spatial$adm1, start = 5)
+spatial$province_code <- as.numeric(spatial$province_code)
+
+
+#Set a column that contains row numbers to make our datasets eligible to join
+data$province_code <- rep(1:81, 12)
+
+
+#Joining datasets on province codes
+df = left_join(data, spatial, by = "province_code")
+
+
+#Update info column by adding city names
+df <- transform(df, info = paste(adm1_en, info, sep = "\n"))
+
+
+#Change our dataset type from dataframe to tibble to be able to plot
+df <- as_tibble(df)
+```
+
+<p>&nbsp;</p>
+
+
+### **Structure of data**
+
+```{r}
+str(df)
+```
+
+<p>&nbsp;</p>
+
+
+### **Optional**
+```{r}
+#We will plot the graphics of the last 7 years for the purpose of keep the file size small. One who is 
+#curious about prior years graphics may delete this chunk before running the code.
+start <- nrow(df) * 5 / 12 + 1
+end <- nrow(df)
+df <- slice(df, start:end)
+```
+
+<p>&nbsp;</p>
+
+
+### **Choropleth map of education by provinces**
+
+```{r fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+mp <- ggplot() +
+  geom_sf(data = df, aes(fill = value,
+                         geometry = geometry,
+                         text = info,
+                         frame = year)) +
+  scale_fill_gradientn(colours = c("gray0", "green", "white"),
+                       values = scales::rescale(c(-0.5, 0, 0.5)),
+                       breaks=c(min(df$value), max(df$value)),
+                       labels=c("Low", "High")) +
+  theme_map() +
+  labs(fill = element_blank()) +
+  ggtitle("Education Level by Province in Turkey") +
+  theme(plot.title = element_text(size = 14, face = "bold.italic"))
+  
+  
+mp <- ggplotly(mp, tooltip = c("text", "frame")) 
+mp <- style(mp, hoverlabel = list(bgcolor = "white"))
+
+
+#Change hoveron settings manually because style(hoveron="fill") command does not
+#work with multiple frames
+for (frame in seq(1:length(mp$x$frames))){
+  for (trace in seq(1:length(mp$x$frames[[frame]]$data))){
+    mp$x$frames[[frame]]$data[[trace]]$hoveron <- "fill"
+  }
+}
+
+
+mp
+```
+
+
+
+
