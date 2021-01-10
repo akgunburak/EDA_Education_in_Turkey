@@ -66,7 +66,7 @@ Original datasets can be found by searching following statements at Turkstat web
 
 &nbsp;
 
-* Choropleth map of provinces in Turkey by education level
+* Choropleth map of provinces in Turkey
 
 ![alt text](https://github.com/akgunburak/EDA_Education_in_Turkey/blob/main/data/map.JPG)
 
